@@ -20,6 +20,14 @@ type Counters struct {
 	validated map[string]uint64 //session ID   highest validated counter
 }
 
+// NewCounters returns an empty, ready-to-use Counters.
+func NewCounters() *Counters {
+	return &Counters{
+		issued:    make(map[string]uint64),
+		validated: make(map[string]uint64),
+	}
+}
+
 // Next returns the next counter for sessionID.
 //
 // The counter is issued but not considered validated until Validate succeeds.
@@ -50,7 +58,7 @@ func (c *Counters) Validate(sessionID string, counter uint64) error {
 //
 // This is useful after a session has been permanetly invalidated.
 func (c *Counters) Forget(sessionID string) {
-	c.mu.Unlock()
+	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	delete(c.issued, sessionID)

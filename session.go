@@ -20,7 +20,7 @@ type Session struct {
 
 // hasExpired reports whether the session has expired.
 func (s *Session) hasExpired(now time.Time) bool {
-	return now.After(s.CreatedAt)
+	return now.After(s.ExpiresAt)
 }
 
 // SessionManager manages sessions and their tokens in memory.
@@ -81,8 +81,8 @@ func (m *SessionManager) Issue(userID string, scopes ...string) (token string, e
 
 	// Serialize, sign and encrypt the claims into a tamper-proof string for the client..
 	return encodeToken(m.key, claims{
-		sessionID: sessionID,
-		userID:    userID,
+		SessionID: sessionID,
+		UserID:    userID,
 		Scopes:    scopes,
 		Counter:   counter,
 		ExpiresAt: sess.ExpiresAt,
@@ -92,7 +92,7 @@ func (m *SessionManager) Issue(userID string, scopes ...string) (token string, e
 // Authenticate validates a token and returns the session with a new token.
 func (m *SessionManager) Authenticate(token string) (*Session, string, error) {
 	// Decrypt and verify the client token signature.
-	c, err := decodeToken(m.Key, token)
+	c, err := decodeToken(m.key, token)
 	if err != nil {
 		return nil, "", err
 	}
@@ -162,13 +162,17 @@ func (m *SessionManager) InvalidateAll(userID string) error {
 		return ErrNotFound
 	}
 
-	// Iterate through matching sessions to flip the revocation state and purge counters.
+	// Iterate through matching sessions to flip the revocation state .
+	//
+	// Retain counter history to ensure intercepted tokens are still rejected as replayed.
 	for sessionID := range ids {
 		if sess, ok := m.sessions[sessionID]; ok {
 			sess.Revoked = true
-			m.counters.Forget(sessionID)
 		}
 	}
+
+	// Remove the user entry from the map to prevent orphan memory leaks
+	delete(m.byUser, userID)
 
 	return nil
 }
